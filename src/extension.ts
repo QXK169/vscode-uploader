@@ -4,6 +4,7 @@ const tinify = require("tinify");
 const imageConfig = vscode.workspace.getConfiguration("upload_image");
 const OSS = require("ali-oss");
 const stream = require("stream");
+const ora = require("ora");
 
 let client = new OSS({
   // yourRegion填写Bucket所在地域。以华东1（杭州）为例，Region填写为oss-cn-hangzhou。
@@ -24,10 +25,7 @@ function handleImageName(tempFilePath: string): string {
     .substr(3)}.${filename}`;
 }
 
-function compressBuffer(
-  sourceData: any,
-  key =  imageConfig.tinyKey
-) {
+function compressBuffer(sourceData: any, key = imageConfig.tinyKey) {
   return new Promise((resolve, reject) => {
     tinify.key = key;
     tinify
@@ -66,10 +64,10 @@ export function activate(context: vscode.ExtensionContext) {
           .substr(3)}.${filename}`;
         fs.readFile(tempFilePath, async (err: any, data: any) => {
           if (err) {
-            console.log(err);
             throw err;
           } else {
             //   上传oss
+            ora("压缩中...").start();
             compressBuffer(data)
               .then(async (res) => {
                 // console.log(res);
@@ -79,12 +77,16 @@ export function activate(context: vscode.ExtensionContext) {
                 bufferStream.end(res);
                 //进一步使用
                 bufferStream.pipe(process.stdout);
-                try {                  
+                ora("压缩完成...").start();
+                try {
+                  ora("图片上传中...").start();
                   const result = await client.putStream(uplaod, bufferStream);
                   const url = imageConfig.baseUrl + result.name;
-                  addImageUrlToEditor(url);
+                  ora("图片上传结束...").start();
+                  const IMage = `<img src=${url} />`
+                  addImageUrlToEditor(IMage);
                 } catch (error) {
-                  console.log(err);
+                  console.log(err, "上传失败");
                 }
               })
               .catch((err) => {
